@@ -14,6 +14,7 @@ import time
 import datetime as dt
 import altair as alt
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
 
 import requests
 import pandas as pd
@@ -22,6 +23,10 @@ import yfinance as yf
 import streamlit as st
 from sqlalchemy import create_engine
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+load_dotenv()
+api_key = os.getenv("API_KEY")
+
 
 # Optional hover/selection UI for peers
 try:
@@ -114,7 +119,7 @@ def fmp_get(url: str, params: Dict[str, Any]) -> Any:
 FMP_BASE = "https://financialmodelingprep.com/stable"
 
 @st.cache_data(show_spinner=False)
-def get_quote_fmp(symbol: str, api_key: str) -> Optional[float]:
+def get_quote_fmp(symbol: str) -> Optional[float]:
     try:
         data = fmp_get(f"{FMP_BASE}/quote", {"symbol": symbol.upper(), "apikey": api_key})
         if isinstance(data, list) and data:
@@ -124,7 +129,7 @@ def get_quote_fmp(symbol: str, api_key: str) -> Optional[float]:
     return None
 
 @st.cache_data(show_spinner=False)
-def get_profile_fmp(symbol: str, api_key: str) -> Dict[str, Any]:
+def get_profile_fmp(symbol: str) -> Dict[str, Any]:
     # FMP first
     item = {}
     try:
@@ -161,7 +166,7 @@ def get_profile_fmp(symbol: str, api_key: str) -> Dict[str, Any]:
     return prof
 
 @st.cache_data(show_spinner=True)
-def get_price_light(symbol: str, api_key: str, date_from: str | None = None, date_to: str | None = None) -> pd.DataFrame:
+def get_price_light(symbol: str, date_from: str | None = None, date_to: str | None = None) -> pd.DataFrame:
     params = {"symbol": symbol.upper(), "apikey": api_key}
     if date_from: params["from"] = date_from
     if date_to:   params["to"]   = date_to
@@ -175,7 +180,7 @@ def get_price_light(symbol: str, api_key: str, date_from: str | None = None, dat
     return df
 
 @st.cache_data(show_spinner=True)
-def get_dividends(symbol: str, api_key: str, limit: int = 100) -> pd.DataFrame:
+def get_dividends(symbol: str, limit: int = 100) -> pd.DataFrame:
     data = fmp_get(f"{FMP_BASE}/dividends", {"symbol": symbol.upper(), "limit": limit, "apikey": api_key})
     df = pd.DataFrame(data) if isinstance(data, list) else pd.DataFrame()
     # make naive datetimes for safe comparisons
@@ -185,7 +190,7 @@ def get_dividends(symbol: str, api_key: str, limit: int = 100) -> pd.DataFrame:
     return df
 
 @st.cache_data(show_spinner=True)
-def get_earnings(symbol: str, api_key: str, limit: int = 100) -> pd.DataFrame:
+def get_earnings(symbol: str, limit: int = 100) -> pd.DataFrame:
     data = fmp_get(f"{FMP_BASE}/earnings", {"symbol": symbol.upper(), "limit": limit, "apikey": api_key})
     df = pd.DataFrame(data) if isinstance(data, list) else pd.DataFrame()
     if "date" in df.columns:
@@ -258,7 +263,7 @@ def get_ttm_financials_yf(symbol: str) -> Dict[str, Any]:
 
 # ---------- Unified TTM: FMP first, then Yahoo fallback ----------
 @st.cache_data(show_spinner=True)
-def get_ttm_financials(symbol: str, api_key: str) -> Dict[str, Any]:
+def get_ttm_financials(symbol: str) -> Dict[str, Any]:
     """
     Try FMP TTM endpoints; on 401/402/403/404 or any error, fall back to Yahoo Finance TTM.
     """
@@ -304,7 +309,7 @@ def get_ttm_financials(symbol: str, api_key: str) -> Dict[str, Any]:
 
 # ---------- FMP quarterly rev/exp for chart ----------
 @st.cache_data(show_spinner=True)
-def get_income_quarterly_fmp(symbol: str, api_key: str, limit: int = 20, shares_out: float | None = None) -> pd.DataFrame:
+def get_income_quarterly_fmp(symbol: str,limit: int = 20, shares_out: float | None = None) -> pd.DataFrame:
     """Quarterly Revenue/Expenses/NetIncome/EPS from FMP. EPS falls back to netIncome/shares_out if needed."""
     try:
         data = fmp_get(
@@ -349,10 +354,10 @@ def get_income_quarterly_fmp(symbol: str, api_key: str, limit: int = 20, shares_
 
 # --------- FMP peers ----------
 @st.cache_data(show_spinner=True)
-def get_peers_fmp(symbol: str, fmp_key: str) -> List[str]:
+def get_peers_fmp(symbol: str) -> List[str]:
     try:
         url = f"{FMP_BASE}/stock-peers"
-        r = requests.get(url, params={"symbol": symbol.upper(), "apikey": fmp_key}, timeout=20)
+        r = requests.get(url, params={"symbol": symbol.upper(), "apikey": api_key}, timeout=20)
         r.raise_for_status()
         data = r.json()
         if isinstance(data, dict) and "peersList" in data:
@@ -367,10 +372,10 @@ def get_peers_fmp(symbol: str, fmp_key: str) -> List[str]:
     return []
 
 @st.cache_data(show_spinner=True)
-def get_peers_fmp_bulk(symbol: str, fmp_key: str) -> List[str]:
+def get_peers_fmp_bulk(symbol: str) -> List[str]:
     try:
         url = f"{FMP_BASE}/peers-bulk"
-        r = requests.get(url, params={"apikey": fmp_key}, timeout=30)
+        r = requests.get(url, params={"apikey": api_key}, timeout=30)
         r.raise_for_status()
         import io as _io
         df = pd.read_csv(_io.StringIO(r.text))
@@ -466,7 +471,7 @@ def what_if_price_from_multiple(row: Dict[str, Any], multiple: float, kind: str)
 # -------------------------
 st.sidebar.title("Settings")
 
-fmp_key = st.sidebar.text_input("FMP API Key", type="password", value=cfg.get("fmp_key", ""))
+# fmp_key = st.sidebar.text_input("FMP API Key", type="password", value=cfg.get("fmp_key", ""))
 
 st.sidebar.markdown("---")
 base_ticker = st.sidebar.text_input("Base Ticker", value=cfg.get("base_ticker", "UNH")).upper().strip()
@@ -503,7 +508,6 @@ selected_metrics = st.sidebar.multiselect(
 
 if st.sidebar.button("💾 Save settings locally"):
     save_config({
-        "fmp_key": fmp_key,
         "base_ticker": base_ticker,
         "cap_band_pct": cap_band_pct,
         "allow_international": allow_international,
@@ -511,8 +515,8 @@ if st.sidebar.button("💾 Save settings locally"):
         "selected_metrics": selected_metrics,
     })
     st.sidebar.success("Saved to .uvsf_config.json (stored locally in this folder).")
-
 # -------------------------
+
 # ---- MAIN: HEADER --------
 # -------------------------
 st.title("📉 Fairvalue Scout")
@@ -522,9 +526,9 @@ st.info(
     "If you want to use it, please reach me at "
     "[sbyun0804@gmail.com](mailto:sbyun0804@gmail.com)."
 )
-if not fmp_key:
-    st.info("Enter your FMP API key in the sidebar to begin.")
-    st.stop()
+# if not fmp_key:
+#     st.info("Enter your FMP API key in the sidebar to begin.")
+#     st.stop()
 
 # -------------------------
 # ---- STEP 1: BASE STOCK --
@@ -533,12 +537,12 @@ colA, colB = st.columns([2, 3])
 with colA:
     st.subheader(f"Base: {base_ticker}")
     try:
-        profile = get_profile_fmp(base_ticker, fmp_key)
+        profile = get_profile_fmp(base_ticker)
     except Exception as e:
         st.error(f"Failed to load profile for {base_ticker}: {e}")
         st.stop()
 
-    price = get_quote_fmp(base_ticker, fmp_key)
+    price = get_quote_fmp(base_ticker)
 
     # Backfill Market Cap & Shares Outstanding (Yahoo fast_info)
     market_cap = profile.get("market_cap")
@@ -563,7 +567,7 @@ with colA:
             pass
 
     # TTM (FMP -> Yahoo fallback)
-    ttm = get_ttm_financials(base_ticker, fmp_key)
+    ttm = get_ttm_financials(base_ticker)
     base_row = compute_multiples_row(base_ticker, price, shares_out, ttm)
 
     st.metric("Last Price", f"{base_row['Price'] if base_row['Price'] is not None else 'N/A':}")
@@ -575,7 +579,7 @@ with colA:
     # Compute Dividend (TTM): sum of dividends in the last 12 months
     div_ttm = None
     try:
-        _div = get_dividends(base_ticker, fmp_key)
+        _div = get_dividends(base_ticker)
         if not _div.empty:
             cutoff = pd.Timestamp.utcnow().tz_localize(None) - pd.DateOffset(years=1)
             mask = pd.Series(False, index=_div.index)
@@ -624,7 +628,7 @@ with colB:
 st.markdown("---")
 with st.expander("Peers (suggestions, manual add, selection & hover)", expanded=True):
     st.subheader("Peer Suggestions")
-    suggested_peers: List[str] = get_peers_fmp(base_ticker, fmp_key) or get_peers_fmp_bulk(base_ticker, fmp_key)
+    suggested_peers: List[str] = get_peers_fmp(base_ticker) or get_peers_fmp_bulk(base_ticker)
     if suggested_peers:
         st.success(f"FMP suggested peers: {', '.join(suggested_peers[:12])}{'...' if len(suggested_peers)>12 else ''}")
     else:
@@ -644,14 +648,14 @@ with st.expander("Peers (suggestions, manual add, selection & hover)", expanded=
     peer_list = sorted({p for p in st.session_state.peer_set if p != base_ticker})
 
     @st.cache_data(show_spinner=True)
-    def load_peer_rows(peers: List[str], fmp_key: str) -> List[Dict[str, Any]]:
+    def load_peer_rows(peers: List[str]) -> List[Dict[str, Any]]:
         def _fetch_one(tkr: str) -> Dict[str, Any]:
             try:
-                prof = get_profile_fmp(tkr, fmp_key)
+                prof = get_profile_fmp(tkr)
             except Exception:
                 prof = {"name": None, "description": None, "ticker": tkr}
             try:
-                pr = get_quote_fmp(tkr, fmp_key)
+                pr = get_quote_fmp(tkr)
             except Exception:
                 pr = None
 
@@ -664,7 +668,7 @@ with st.expander("Peers (suggestions, manual add, selection & hover)", expanded=
                     pass
 
             try:
-                fin = get_ttm_financials(tkr, fmp_key)
+                fin = get_ttm_financials(tkr)
             except Exception:
                 fin = {
                     "revenues_ttm": np.nan, "cogs_ttm": np.nan, "net_income_ttm": np.nan,
@@ -693,7 +697,7 @@ with st.expander("Peers (suggestions, manual add, selection & hover)", expanded=
     # Load peer rows only when peer_list changes
     if peer_list != st.session_state.get("_last_peer_list", []):
         st.session_state["_last_peer_list"] = peer_list
-        st.session_state["peer_rows"] = load_peer_rows(peer_list, fmp_key) if peer_list else []
+        st.session_state["peer_rows"] = load_peer_rows(peer_list) if peer_list else []
 
     peer_rows = st.session_state.get("peer_rows", [])
 
@@ -792,7 +796,7 @@ st.dataframe(view_df, use_container_width=True)
 # -------------------------
 st.subheader("Trends (5y): Revenue vs Expenses, Net Income & EPS")
 
-hist_df = get_income_quarterly_fmp(base_ticker, fmp_key, limit=20, shares_out=shares_out)  # ~5y
+hist_df = get_income_quarterly_fmp(base_ticker, limit=20, shares_out=shares_out)  # ~5y
 if not hist_df.empty:
     plot_df = hist_df.reset_index(names="date")
 
@@ -871,7 +875,7 @@ with st.expander("Price & Volume + Upcoming Dates", expanded=True):
     d_from_str = d_from.isoformat() if d_from else None
     d_to_str = d_to.isoformat() if d_to else None
 
-    px = get_price_light(base_ticker, fmp_key, d_from_str, d_to_str)
+    px = get_price_light(base_ticker, d_from_str, d_to_str)
     if not px.empty and {"date","price","volume"}.issubset(px.columns):
         price_chart = alt.Chart(px).mark_line().encode(
             x=alt.X("date:T", title=None),
@@ -890,8 +894,8 @@ with st.expander("Price & Volume + Upcoming Dates", expanded=True):
         st.caption("No price data from FMP light endpoint for the selected range.")
 
     # Upcoming dates (dividends & earnings)
-    div = get_dividends(base_ticker, fmp_key)
-    ear = get_earnings(base_ticker, fmp_key)
+    div = get_dividends(base_ticker)
+    ear = get_earnings(base_ticker)
     upcoming_bits = []
 
     now = pd.Timestamp.utcnow().tz_localize(None).normalize()
@@ -1015,7 +1019,7 @@ if not wl.empty:
     prices = []
     for t in wl["ticker"].tolist():
         try:
-            p = get_quote_fmp(t, fmp_key)
+            p = get_quote_fmp(t)
         except Exception:
             p = None
         prices.append(p)
@@ -1041,7 +1045,7 @@ with st.expander("Analyst Forecasts (FMP)"):
     try:
         est = fmp_get(
             f"{FMP_BASE}/analyst-estimates",
-            {"symbol": base_ticker, "period": "annual", "limit": 10, "apikey": fmp_key},
+            {"symbol": base_ticker, "period": "annual", "limit": 10, "apikey": api_key},
         )
         if isinstance(est, list) and est:
             df_est = pd.DataFrame(est)
@@ -1063,7 +1067,7 @@ with st.expander("Analyst Forecasts (FMP)"):
 
 with st.expander("Latest News (FMP)"):
     try:
-        news = fmp_get(f"{FMP_BASE}/news/stock", {"symbols": base_ticker, "limit": 10, "apikey": fmp_key})
+        news = fmp_get(f"{FMP_BASE}/news/stock", {"symbols": base_ticker, "limit": 10, "apikey": api_key})
         if isinstance(news, list) and news:
             nd = pd.DataFrame(news)
             cols = [c for c in ["publishedDate","publisher","title","url"] if c in nd.columns]
