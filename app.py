@@ -703,34 +703,58 @@ with st.expander("Peers (suggestions, manual add, selection & hover)", expanded=
     # ---- Selection table integrated with description ----
     if peer_rows:
         info_df = pd.DataFrame([{
-            "Ticker": base_row["Ticker"], "Name": profile.get("name"), "Description": profile.get("description") or ""
+            "Ticker": base_row["Ticker"],
+            "Name": profile.get("name"),
+            "Description": profile.get("description") or ""
         }] + peer_rows)
 
         if HAS_AGGRID:
             grid_df = info_df[["Ticker", "Name", "Description"]].copy()
-            grid_df["Preview"] = grid_df["Description"].fillna("").apply(lambda x: (x[:120] + "…") if len(x) > 120 else x)
+            grid_df["Preview"] = grid_df["Description"].fillna("").apply(
+                lambda x: (x[:120] + "…") if len(x) > 120 else x
+            )
 
-            gb = GridOptionsBuilder.from_dataframe(grid_df[["Ticker","Name","Preview","Description"]])
+            gb = GridOptionsBuilder.from_dataframe(
+                grid_df[["Ticker", "Name", "Preview", "Description"]]
+            )
             gb.configure_selection(selection_mode="multiple", use_checkbox=True)
             gb.configure_grid_options(domLayout="autoHeight")
-            gb.configure_column("Preview", header_name="Description", tooltipField="Description", autoHeight=True, wrapText=True, flex=2)
+            gb.configure_column(
+                "Preview",
+                header_name="Description",
+                tooltipField="Description",
+                autoHeight=True,
+                wrapText=True,
+                flex=2,
+            )
             gb.configure_column("Ticker", flex=0)
             gb.configure_column("Name", flex=1)
             gb.configure_column("Description", hide=True)
 
             grid_options = gb.build()
-            grid = AgGrid(
+            grid_response = AgGrid(
                 grid_df,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=True,
                 allow_unsafe_jscode=True,
                 theme="balham",
+                key=f"aggrid_{base_ticker}",   # keep AgGrid state isolated per ticker
             )
-            selected = grid.get("selected_rows", [])
-            selected_tickers = [row["Ticker"] for row in selected if "Ticker" in row and row["Ticker"] != base_ticker]
+
+            # --- robust selection handling ---
+            selected_rows = []
+            if isinstance(grid_response, dict):
+                selected_rows = grid_response.get("selected_rows") or []
+            if not isinstance(selected_rows, list):
+                selected_rows = []
+
+            selected_tickers = [
+                r.get("Ticker") for r in selected_rows
+                if r.get("Ticker") and r.get("Ticker") != base_ticker
+            ]
         else:
-            tmp = info_df[["Ticker","Name","Description"]].copy()
+            tmp = info_df[["Ticker", "Name", "Description"]].copy()
             tmp["Select"] = tmp["Ticker"].ne(base_ticker)  # default select peers
             tmp = st.data_editor(
                 tmp,
@@ -739,12 +763,15 @@ with st.expander("Peers (suggestions, manual add, selection & hover)", expanded=
                     "Description": st.column_config.TextColumn("Description", width="large"),
                     "Select": st.column_config.CheckboxColumn("Select"),
                 },
-                disabled=["Ticker","Name","Description"],
+                disabled=["Ticker", "Name", "Description"],
                 key="peer_select_editor",
             )
-            selected_tickers = tmp.loc[tmp["Select"] & tmp["Ticker"].ne(base_ticker), "Ticker"].tolist()
+            selected_tickers = tmp.loc[
+                tmp["Select"] & tmp["Ticker"].ne(base_ticker), "Ticker"
+            ].tolist()
     else:
         selected_tickers = []
+
 
 # -------------------------
 # ---- STEP 3: COMP TABLE --
