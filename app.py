@@ -14,7 +14,6 @@ import time
 import datetime as dt
 import altair as alt
 from typing import List, Dict, Any, Optional
-from dotenv import load_dotenv
 
 import requests
 import pandas as pd
@@ -23,9 +22,6 @@ import yfinance as yf
 import streamlit as st
 from sqlalchemy import create_engine
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-load_dotenv()
-api_key = os.getenv("API_KEY")
 
 
 # Optional hover/selection UI for peers
@@ -59,6 +55,9 @@ def save_config(cfg: Dict[str, Any]):
         st.warning(f"Could not save config: {e}")
 
 cfg = load_config()
+
+api_key = st.secrets.get("FMP_API_KEY") or os.getenv("FMP_API_KEY") or cfg.get("fmp_key", "")
+
 
 if "watchlist_engine" not in st.session_state:
     st.session_state.watchlist_engine = create_engine("sqlite:///watchlist.db", echo=False)
