@@ -56,7 +56,7 @@ def save_config(cfg: Dict[str, Any]):
 
 cfg = load_config()
 
-api_key = st.secrets.get("FMP_API_KEY") or os.getenv("FMP_API_KEY") or cfg.get("fmp_key", "")
+api_key = st.secrets.get("FMP_API_KEY")
 
 
 if "watchlist_engine" not in st.session_state:
