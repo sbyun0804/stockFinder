@@ -1,0 +1,19 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 2rem;
+  background-color: #282c34;
+  color: white;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-direction: row;
+  flex: 1;
+}

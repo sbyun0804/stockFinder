@@ -1,0 +1,22 @@
+.container {
+  display: flex;
+  padding: 1rem 5rem;
+}
+
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.description {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.descriptionText {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+}
